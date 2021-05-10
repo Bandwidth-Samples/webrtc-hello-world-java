@@ -8,15 +8,9 @@ import com.bandwidth.voice.models.ApiCallResponse;
 import com.bandwidth.voice.models.ApiCreateCallRequest;
 import com.bandwidth.webrtc.examples.helloworld.config.AccountProperties;
 import com.bandwidth.webrtc.examples.helloworld.config.VoiceProperties;
-
 import com.bandwidth.webrtc.examples.helloworld.config.WebRtcProperties;
-import com.bandwidth.webrtc.models.AccountsParticipantsResponse;
-import com.bandwidth.webrtc.models.Participant;
-import com.bandwidth.webrtc.models.PublishPermissionEnum;
-import com.bandwidth.webrtc.models.Session;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.bandwidth.webrtc.models.*;
+import com.bandwidth.webrtc.utils.WebRtcTransfer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,7 +22,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.io.IOException;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -52,14 +45,12 @@ public class HelloWorldController {
     private final String voiceApplicationPhoneNumber;
     private final String voiceCallbackUrl;
     private final String outboundPhoneNumber;
-    private final String sipxNumber;
 
     private final com.bandwidth.voice.controllers.APIController voiceController;
     private final com.bandwidth.webrtc.controllers.APIController webrtcController;
 
     private String sessionId;
     private final Map<String, AccountsParticipantsResponse> calls = new HashMap<>();
-    private final ObjectMapper mapper = new ObjectMapper();
 
     @Autowired
     public HelloWorldController(AccountProperties accountProperties, VoiceProperties voiceProperties, WebRtcProperties webRtcProperties) {
@@ -68,7 +59,6 @@ public class HelloWorldController {
         voiceApplicationPhoneNumber = voiceProperties.getApplicationPhoneNumber();
         voiceCallbackUrl = voiceProperties.getCallbackUrl();
         outboundPhoneNumber = voiceProperties.getOutboundPhoneNumber();
-        sipxNumber = webRtcProperties.getSipxNumber();
 
         logger.info("accountId: {}", accountId);
         logger.info("voiceApplicationId: {}", voiceApplicationId);
@@ -130,7 +120,7 @@ public class HelloWorldController {
         calls.put(callId, response);
 
         // Generate transfer BXML from the device token and return that to the Voice API
-        String transferBxml = generateTransferBxml(response.getToken());
+        String transferBxml = WebRtcTransfer.generateBxml(response.getToken());
         logger.info("transferring call {} to session {} as participant {}", callId, sessionId, response.getParticipant().getId());
         return ResponseEntity.ok().contentType(MediaType.APPLICATION_XML).body(transferBxml);
     }
@@ -153,7 +143,7 @@ public class HelloWorldController {
         }
 
         // Generate transfer BXML from the device token and return that to the Voice API
-        String transferBxml = generateTransferBxml(response.getToken());
+        String transferBxml = WebRtcTransfer.generateBxml(response.getToken());
         logger.info("transferring call {} to session {} as participant {}", callId, sessionId, response.getParticipant().getId());
         return ResponseEntity.ok().contentType(MediaType.APPLICATION_XML).body(transferBxml);
     }
@@ -232,6 +222,7 @@ public class HelloWorldController {
             participant.setCallbackUrl("https://example.com");
             participant.setPublishPermissions(Collections.singletonList(PublishPermissionEnum.AUDIO));
             participant.setTag(tag);
+            participant.setDeviceApiVersion(DeviceApiVersionEnum.V3);
 
             ApiResponse<AccountsParticipantsResponse> response = webrtcController.createParticipant(accountId, participant);
             AccountsParticipantsResponse result = response.getResult();
@@ -271,29 +262,6 @@ public class HelloWorldController {
             logger.info("initiated call {} to {}...", callId, phoneNumber);
         } catch (IOException | ApiException e) {
             logger.error("error calling {}", phoneNumber, e);
-        }
-    }
-
-    /**
-     * Generate transfer BXML from a WebRTC device token (JWT)
-     * We're working on moving this into the SDK
-     * @param deviceToken token
-     * @return transfer BXML
-     */
-    private String generateTransferBxml(String deviceToken) {
-        try {
-            String encodedPayload = deviceToken.split("\\.")[1];
-            String decodedPayload = new String(Base64.getDecoder().decode(encodedPayload));
-            Map<String, Object> payload = mapper.readValue(decodedPayload, new TypeReference<>() {});
-            String tid = (String) payload.get("tid");
-            return "<?xml version=\"1.0\" encoding=\"UTF-8\" ?>" +
-                    "<Response>" +
-                    "<Transfer transferCallerId=\"" + tid + "\">" +
-                    "<PhoneNumber>" + sipxNumber + "</PhoneNumber>" +
-                    "</Transfer>" +
-                    "</Response>";
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException(e);
         }
     }
 }
