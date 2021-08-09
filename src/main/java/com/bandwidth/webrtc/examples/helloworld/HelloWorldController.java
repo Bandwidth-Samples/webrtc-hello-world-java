@@ -4,8 +4,8 @@ import com.bandwidth.BandwidthClient;
 import com.bandwidth.Environment;
 import com.bandwidth.exceptions.ApiException;
 import com.bandwidth.http.response.ApiResponse;
-import com.bandwidth.voice.models.ApiCallResponse;
-import com.bandwidth.voice.models.ApiCreateCallRequest;
+import com.bandwidth.voice.models.CreateCallRequest;
+import com.bandwidth.voice.models.CreateCallResponse;
 import com.bandwidth.webrtc.examples.helloworld.config.AccountProperties;
 import com.bandwidth.webrtc.examples.helloworld.config.VoiceProperties;
 import com.bandwidth.webrtc.examples.helloworld.config.WebRtcProperties;
@@ -120,7 +120,7 @@ public class HelloWorldController {
         calls.put(callId, response);
 
         // Generate transfer BXML from the device token and return that to the Voice API
-        String transferBxml = WebRtcTransfer.generateBxml(response.getToken());
+        String transferBxml = WebRtcTransfer.generateBxml(response.getToken(), callId);
         logger.info("transferring call {} to session {} as participant {}", callId, sessionId, response.getParticipant().getId());
         return ResponseEntity.ok().contentType(MediaType.APPLICATION_XML).body(transferBxml);
     }
@@ -143,7 +143,7 @@ public class HelloWorldController {
         }
 
         // Generate transfer BXML from the device token and return that to the Voice API
-        String transferBxml = WebRtcTransfer.generateBxml(response.getToken());
+        String transferBxml = WebRtcTransfer.generateBxml(response.getToken(), callId);
         logger.info("transferring call {} to session {} as participant {}", callId, sessionId, response.getParticipant().getId());
         return ResponseEntity.ok().contentType(MediaType.APPLICATION_XML).body(transferBxml);
     }
@@ -245,7 +245,7 @@ public class HelloWorldController {
      */
     private void initiateCall(String phoneNumber, AccountsParticipantsResponse createParticipantResponse) {
         // Create a new call request
-        ApiCreateCallRequest callRequest = new ApiCreateCallRequest();
+        CreateCallRequest callRequest = new CreateCallRequest();
         callRequest.setApplicationId(voiceApplicationId);
         callRequest.setFrom(voiceApplicationPhoneNumber);
         callRequest.setTo(phoneNumber);
@@ -254,7 +254,7 @@ public class HelloWorldController {
 
         try {
             // Create a new call with that request
-            ApiResponse<ApiCallResponse> apiCallResponse = voiceController.createCall(accountId, callRequest);
+            ApiResponse<CreateCallResponse> apiCallResponse = voiceController.createCall(accountId, callRequest);
             String callId = apiCallResponse.getResult().getCallId();
 
             // Set the call id to the create participant response so we can transfer them when they answer
